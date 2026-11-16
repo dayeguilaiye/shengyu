@@ -1,0 +1,70 @@
+---
+import '@/styles/global.css';
+import Sidebar from '@/components/Sidebar.astro';
+import Search from '@/components/Search.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** 传给侧栏，用来高亮当前位置 */
+  current?: string;
+}
+const { title, description, current } = Astro.props;
+const fullTitle = title ? `${title} · 孕育手册` : '孕育手册';
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    {description && <meta name="description" content={description} />}
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script is:inline>
+      (function () {
+        var root = document.documentElement;
+        try {
+          var pref = localStorage.getItem('yy:theme') || 'auto';
+          var dark = pref === 'dark' || (pref === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+          root.dataset.theme = dark ? 'dark' : 'light';
+          root.dataset.themePref = pref;
+        } catch (e) {
+          root.dataset.theme = 'light';
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <a class="skip" href="#main">跳到正文</a>
+
+    <header class="topbar">
+      <button class="icon-btn" type="button" aria-label="打开目录" aria-controls="side" data-drawer-open>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+          <path d="M3 5.5h14M3 10h14M3 14.5h14"></path>
+        </svg>
+      </button>
+      <a class="topbar-brand" href="/">孕育手册</a>
+      <button class="icon-btn" type="button" aria-label="搜索" data-search-open>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+          <circle cx="9" cy="9" r="5.5"></circle>
+          <path d="m13.2 13.2 3.6 3.6"></path>
+        </svg>
+      </button>
+    </header>
+    <div class="scrim" data-drawer-close></div>
+
+    <div class="shell">
+      <Sidebar current={current} />
+      <main class="main" id="main">
+        <slot />
+      </main>
+    </div>
+
+    <Search />
+    <script>
+      import '@/scripts/app.ts';
+    </script>
+  </body>
+</html>

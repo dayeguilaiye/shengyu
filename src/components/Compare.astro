@@ -1,0 +1,22 @@
+---
+/**
+ * 对比表。里面直接放一个 Markdown 表格，第一列是比较的维度，其余每列一个选项。
+ * 窄屏上会自动改成逐项堆叠。
+ */
+---
+
+<x-compare class="compare"><slot /></x-compare>
+
+<script>
+  class XCompare extends HTMLElement {
+    connectedCallback() {
+      const heads = [...this.querySelectorAll('thead th')].map((th) => th.textContent?.trim() ?? '');
+      this.querySelectorAll('tbody tr').forEach((tr) => {
+        [...tr.children].forEach((td, i) => {
+          if (i > 0 && heads[i]) td.setAttribute('data-label', heads[i]);
+        });
+      });
+    }
+  }
+  customElements.define('x-compare', XCompare);
+</script>

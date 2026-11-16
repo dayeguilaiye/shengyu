@@ -1,0 +1,181 @@
+---
+import { render } from 'astro:content';
+import Base from '@/layouts/Base.astro';
+import * as components from '@/components/mdx';
+import { allDocs, docsIn, groupOf, hrefOf, knowledgeOf } from '@/lib/docs';
+import { groupById, kinds, priorities } from '@/data/site';
+
+export async function getStaticPaths() {
+  const docs = await allDocs();
+  return docs.map((doc) => {
+    const [group, slug] = doc.id.split('/');
+    return { params: { group, slug }, props: { doc } };
+  });
+}
+
+const { doc } = Astro.props;
+const { data } = doc;
+const docs = await allDocs();
+const group = groupById(groupOf(doc))!;
+const siblings = docsIn(docs, group.id);
+const at = siblings.findIndex((d) => d.id === doc.id);
+const prev = siblings[at - 1];
+const next = siblings[at + 1];
+
+const planned = data.status === 'planned';
+const { Content, headings } = planned ? { Content: null, headings: [] } : await render(doc);
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const knowledge = planned ? [] : knowledgeOf(doc);
+
+const related = data.related.map((id) => {
+  const hit = docs.find((d) => d.id === id);
+  if (!hit) throw new Error(`${doc.id} 的 related 里写了不存在的页面 "${id}"`);
+  return hit;
+});
+const fmt = (d: Date) => `${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日`;
+---
+
+<Base title={data.title} description={data.summary} current={doc.id}>
+  <div class="page">
+    <div class="doc-grid">
+      <article>
+        <p class="crumb">
+          <a href="/">总览</a> / <a href={`/${group.id}/`}>{group.title}</a>
+        </p>
+        <h1 class="page-title">{data.heading ?? data.title}</h1>
+        <p class="lead">{data.summary}</p>
+
+        <div class="meta">
+          {data.kind !== 'guide' && <span>{kinds[data.kind]}</span>}
+          {data.when && <span>{data.when}</span>}
+          {planned && <span>待写 · 优先级：{priorities[data.priority as 1 | 2 | 3]}</span>}
+          {data.status === 'draft' && <span>草稿，还没写完</span>}
+          {data.updated && <span>更新于 {fmt(data.updated)}</span>}
+          {knowledge.length > 0 && <span>{knowledge.length} 个知识点</span>}
+          {
+            !planned && (
+              <span class="meta-actions">
+                {knowledge.length > 1 && (
+                  <button class="btn" type="button" data-expand-all>
+                    全部展开
+                  </button>
+                )}
+                <button class="btn" type="button" data-read-toggle={doc.id} aria-pressed="false">
+                  标为已读
+                </button>
+              </span>
+            )
+          }
+        </div>
+
+        {
+          planned && (
+            <div class="planned">
+              <p class="planned-head">这一页还没写。打算覆盖这些内容：</p>
+              <ul>
+                {data.outline.map((line) => (
+                  <li>{line}</li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+
+        {
+          Content && (
+            <div class="prose">
+              <Content components={components} />
+            </div>
+          )
+        }
+
+        {
+          data.status === 'draft' && data.outline.length > 0 && (
+            <div class="planned" style="margin-top:2.5rem">
+              <p class="planned-head">这一页计划覆盖的全部要点（有些还没写到）：</p>
+              <ul>
+                {data.outline.map((line) => (
+                  <li>{line}</li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
+
+        <footer class="doc-foot">
+          {
+            data.sources.length > 0 && (
+              <div class="foot-block sources">
+                <p class="foot-title">依据</p>
+                <ul>
+                  {data.sources.map((s) => (
+                    <li>
+                      {s.url ? <a href={s.url} target="_blank" rel="noopener">{s.title}</a> : s.title}
+                      <small>
+                        {[s.org, s.year].filter(Boolean).length > 0 && ` · ${[s.org, s.year].filter(Boolean).join('，')}`}
+                      </small>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          }
+          {
+            related.length > 0 && (
+              <div class="foot-block">
+                <p class="foot-title">相关页面</p>
+                <ul class="page-links">
+                  {related.map((d) => (
+                    <li>
+                      <a href={hrefOf(d)} data-status={d.data.status}>
+                        {d.data.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          }
+          {
+            !planned && (
+              <div class="foot-block">
+                <p class="disclaimer">这里是为了弄明白事情而做的整理，不能代替医生对你个人情况的判断。拿不准的，带着问题去问产检医生。</p>
+              </div>
+            )
+          }
+          <nav class="pager" aria-label="同组的前后页">
+            {
+              prev && (
+                <a href={hrefOf(prev)}>
+                  <small>上一页</small>
+                  <span>{prev.data.title}</span>
+                </a>
+              )
+            }
+            {
+              next && (
+                <a href={hrefOf(next)}>
+                  <small>下一页</small>
+                  <span>{next.data.title}</span>
+                </a>
+              )
+            }
+          </nav>
+        </footer>
+      </article>
+
+      {
+        toc.length > 1 && (
+          <nav class="toc" aria-label="本页目录">
+            <p class="toc-title">本页</p>
+            {toc.map((h) => (
+              <a href={`#${h.slug}`} data-depth={h.depth}>
+                {h.text}
+              </a>
+            ))}
+          </nav>
+        )
+      }
+    </div>
+  </div>
+</Base>

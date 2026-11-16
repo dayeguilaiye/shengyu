@@ -1,0 +1,30 @@
+---
+/**
+ * 知识点：一句结论 + 展开后的原因和做法。
+ * 用法见 CLAUDE.md。title 是必填，改 title 会改锚点。
+ */
+import { anchorId } from '@/lib/anchor';
+import { verdicts, type Verdict } from '@/data/site';
+
+interface Props {
+  title: string;
+  verdict?: Verdict;
+  gist?: string;
+  id?: string;
+}
+const { title, verdict = 'info', gist } = Astro.props;
+const id = Astro.props.id ?? anchorId(title);
+const v = verdicts[verdict] ?? verdicts.info;
+---
+
+<details class="k k-point" id={id} data-verdict={verdict}>
+  <summary>
+    <span class="tag" data-tone={v.tone}>{v.label}</span>
+    <span>
+      <span class="k-title">{title}</span>
+      {gist && <span class="k-gist">{gist}</span>}
+    </span>
+    <span class="k-toggle" aria-hidden="true"></span>
+  </summary>
+  <div class="k-body prose"><slot /></div>
+</details>

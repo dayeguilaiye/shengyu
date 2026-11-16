@@ -1,0 +1,28 @@
+---
+/**
+ * 一个"问题"：症状、并发症、后遗症。里面放若干 <Part>。
+ * rate 写发生率，一句话，放在右侧。
+ */
+import { anchorId } from '@/lib/anchor';
+
+interface Props {
+  title: string;
+  gist?: string;
+  rate?: string;
+  id?: string;
+}
+const { title, gist, rate } = Astro.props;
+const id = Astro.props.id ?? anchorId(title);
+---
+
+<details class="k k-issue" id={id}>
+  <summary>
+    <span>
+      <span class="k-title">{title}</span>
+      {gist && <span class="k-gist">{gist}</span>}
+    </span>
+    <span class="k-rate">{rate}</span>
+    <span class="k-toggle" aria-hidden="true"></span>
+  </summary>
+  <div class="k-body"><slot /></div>
+</details>

@@ -1,0 +1,102 @@
+---
+import Base from '@/layouts/Base.astro';
+import { allKnowledge } from '@/lib/docs';
+import { verdicts, groups } from '@/data/site';
+
+const items = await allKnowledge();
+const used = Object.keys(verdicts).filter((v) => items.some((k) => k.verdict === v));
+const usedGroups = groups.filter((g) => items.some((k) => k.group === g.id));
+---
+
+<Base title="知识点库" description="各页面里的知识点汇总，可以按结论类型筛选。" current="points">
+  <div class="page page-narrow">
+    <p class="crumb"><a href="/">总览</a> / 工具与速查</p>
+    <h1 class="page-title">知识点库</h1>
+    <p class="lead">散在各页里的知识点和问题都汇总在这里。点一条会跳到它所在的页面并展开。</p>
+
+    <div class="filters" data-kb-filters>
+      <button class="btn" type="button" data-v="all" aria-pressed="true">全部</button>
+      {
+        used.map((v) => (
+          <button class="btn" type="button" data-v={v} aria-pressed="false">
+            {verdicts[v as keyof typeof verdicts].label}
+          </button>
+        ))
+      }
+      {
+        items.some((k) => k.kind === 'issue') && (
+          <button class="btn" type="button" data-v="issue" aria-pressed="false">
+            问题
+          </button>
+        )
+      }
+    </div>
+    <div class="filters" style="margin-top:0">
+      <select class="field" data-kb-group aria-label="按分组筛选">
+        <option value="all">所有分组</option>
+        {usedGroups.map((g) => <option value={g.id}>{g.title}</option>)}
+      </select>
+      <input class="field" type="search" placeholder="在知识点里找" data-kb-q aria-label="在知识点里找" />
+      <span class="filters-count" data-kb-count>{items.length} 条</span>
+    </div>
+
+    <div data-kb-list>
+      {
+        items.map((k) => (
+          <a
+            class="kb-row"
+            href={k.href}
+            data-v={k.kind === 'issue' ? 'issue' : k.verdict}
+            data-group={k.group}
+            data-text={`${k.title} ${k.gist} ${k.text}`.toLowerCase()}
+          >
+            {k.kind === 'point' ? (
+              <span class="tag" data-tone={verdicts[k.verdict!].tone}>
+                {verdicts[k.verdict!].label}
+              </span>
+            ) : (
+              <span class="tag">问题</span>
+            )}
+            <span>
+              <span class="k-title">{k.title}</span>
+              {k.gist && <span class="k-gist">{k.gist}</span>}
+            </span>
+            <span class="kb-from">{k.docTitle}</span>
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</Base>
+
+<script>
+  const rows = [...document.querySelectorAll<HTMLElement>('.kb-row')];
+  const vBtns = [...document.querySelectorAll<HTMLButtonElement>('[data-kb-filters] [data-v]')];
+  const group = document.querySelector<HTMLSelectElement>('[data-kb-group]')!;
+  const q = document.querySelector<HTMLInputElement>('[data-kb-q]')!;
+  const count = document.querySelector<HTMLElement>('[data-kb-count]')!;
+  let v = 'all';
+
+  function apply() {
+    const tokens = q.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    let n = 0;
+    for (const r of rows) {
+      const ok =
+        (v === 'all' || r.dataset.v === v) &&
+        (group.value === 'all' || r.dataset.group === group.value) &&
+        tokens.every((t) => r.dataset.text!.includes(t));
+      r.hidden = !ok;
+      if (ok) n++;
+    }
+    count.textContent = `${n} 条`;
+  }
+  vBtns.forEach((b) =>
+    b.addEventListener('click', () => {
+      v = b.dataset.v!;
+      vBtns.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      apply();
+    }),
+  );
+  group.addEventListener('change', apply);
+  q.addEventListener('input', apply);
+</script>

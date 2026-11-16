@@ -1,0 +1,41 @@
+---
+import Base from '@/layouts/Base.astro';
+import { allDocs, docsIn, hrefOf } from '@/lib/docs';
+import { groups, kinds, statuses } from '@/data/site';
+
+export function getStaticPaths() {
+  return groups.map((group) => ({ params: { group: group.id }, props: { group } }));
+}
+const { group } = Astro.props;
+const pages = docsIn(await allDocs(), group.id);
+const written = pages.filter((d) => d.data.status !== 'planned').length;
+---
+
+<Base title={group.title} description={group.blurb} current={group.id}>
+  <div class="page page-narrow">
+    <p class="crumb"><a href="/">总览</a> / {group.kind === 'stage' ? '按时间' : '按专题'}</p>
+    <h1 class="page-title">{group.title}</h1>
+    <p class="lead">{group.blurb}</p>
+    <p class="meta">
+      {group.range && <span>{group.range}</span>}
+      <span>{pages.length} 页，已写 {written} 页</span>
+    </p>
+
+    <ul class="list-rows">
+      {
+        pages.map((d) => (
+          <li class="list-row" data-status={d.data.status}>
+            <a class="list-row-title" href={hrefOf(d)}>
+              {d.data.title}
+            </a>
+            <p class="list-row-sum">{d.data.summary}</p>
+            <span class="list-row-meta">
+              {d.data.kind !== 'guide' && <span>{kinds[d.data.kind]}</span>}
+              {d.data.status !== 'done' && <span>{statuses[d.data.status]}</span>}
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</Base>

@@ -1,0 +1,119 @@
+name: Yunyu
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: yunyu-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/check-dist.mjs
+      - name: Record revision
+        run: |
+          node -e 'require("fs").writeFileSync("dist/version.json", JSON.stringify({revision: process.env.GITHUB_SHA}))'
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310
+        with:
+          version: v3.16.3
+      - run: helm lint deploy/yunyu --set image.digest=sha256:check
+      - run: bash -n deploy/bootstrap.sh scripts/smoke.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: site
+          path: dist/
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: site
+          path: dist
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        id: build
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/dayeguilaiye/yunyu:sha-${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/dayeguilaiye/yunyu
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.16.3
+      - name: Verify public image access
+        env:
+          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
+        run: |
+          # GHCR packages start private; make the yunyu package public once after its first publication.
+          docker manifest inspect "ghcr.io/dayeguilaiye/yunyu@$IMAGE_DIGEST" > /dev/null
+      - name: Deploy
+        env:
+          YUNYU_KUBECONFIG: ${{ secrets.YUNYU_KUBECONFIG }}
+          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test -n "$YUNYU_KUBECONFIG"
+          # A queued run must not replace a newer main revision.
+          test "$(gh api repos/dayeguilaiye/yunyu/commits/main --jq .sha)" = "$GITHUB_SHA"
+          umask 077
+          export KUBECONFIG="$RUNNER_TEMP/yunyu-kubeconfig"
+          trap 'rm -f "$KUBECONFIG"' EXIT
+          printf '%s\n' "$YUNYU_KUBECONFIG" > "$KUBECONFIG"
+          helm upgrade yunyu deploy/yunyu --install --namespace yunyu \
+            --set-string image.digest="$IMAGE_DIGEST" --atomic --timeout 5m --history-max 10
+      - name: Check HTTPS
+        run: bash scripts/smoke.sh https://yunyu.hitnrun.cn "$GITHUB_SHA"

@@ -1,0 +1,37 @@
+---
+import Base from '@/layouts/Base.astro';
+import { glossary } from '@/data/glossary';
+
+const cats = [...new Set(glossary.map((t) => t.cat))];
+---
+
+<Base title="术语表" description="产检单、医生和亲戚嘴里的那些词是什么意思。" current="glossary">
+  <div class="page page-narrow gloss">
+    <p class="crumb"><a href="/">总览</a> / 工具与速查</p>
+    <h1 class="page-title">术语表</h1>
+    <p class="lead">产检单上、医生嘴里、妈妈群里反复出现的词。正文里带虚线的词，鼠标移上去或点一下也能看到同样的解释。</p>
+
+    {
+      cats.map((cat) => (
+        <section>
+          <div class="group-head">
+            <h2>{cat}</h2>
+          </div>
+          <dl>
+            {glossary
+              .filter((t) => t.cat === cat)
+              .map((t) => (
+                <div class="gloss-row" id={`t-${t.k}`}>
+                  <dt>
+                    {t.term}
+                    {t.full && <small>{t.full}</small>}
+                  </dt>
+                  <dd>{t.def}</dd>
+                </div>
+              ))}
+          </dl>
+        </section>
+      ))
+    }
+  </div>
+</Base>

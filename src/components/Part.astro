@@ -1,0 +1,12 @@
+---
+/** Issue 里的一栏。label 常用：是什么 / 怎么预防 / 已经发生了 / 什么时候看医生 */
+interface Props {
+  label: string;
+}
+const { label } = Astro.props;
+---
+
+<section class="part">
+  <p class="part-label">{label}</p>
+  <div class="part-body prose"><slot /></div>
+</section>

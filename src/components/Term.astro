@@ -1,0 +1,50 @@
+---
+/**
+ * 术语。<Term k="nt" /> 显示术语名；<Term k="nt">颈后透明层</Term> 可以换显示的字。
+ * 解释来自 src/data/glossary.ts。
+ */
+import { termByKey } from '@/data/glossary';
+
+interface Props {
+  k: string;
+}
+const { k } = Astro.props;
+const t = termByKey(k);
+if (!t) throw new Error(`术语 "${k}" 不在 src/data/glossary.ts 里`);
+const hasSlot = Astro.slots.has('default');
+---
+
+<x-term class="term"
+  ><button class="term-btn" type="button" aria-describedby={`term-${k}`}>{hasSlot ? <slot /> : t.term}</button
+  ><span class="term-pop" role="tooltip" id={`term-${k}`}
+    >{t.full && <span class="term-full">{t.full}</span>}{t.def}</span
+  ></x-term
+>
+
+<script>
+  class XTerm extends HTMLElement {
+    connectedCallback() {
+      const btn = this.querySelector('button')!;
+      const pop = this.querySelector<HTMLElement>('.term-pop')!;
+      const open = () => {
+        this.setAttribute('data-open', '');
+        pop.style.transform = '';
+        const r = pop.getBoundingClientRect();
+        const over = r.right - (document.documentElement.clientWidth - 12);
+        const shift = Math.max(0, Math.min(over, r.left - 12));
+        if (shift > 0) pop.style.transform = `translateX(${-shift}px)`;
+      };
+      const close = () => this.removeAttribute('data-open');
+      this.addEventListener('mouseenter', open);
+      this.addEventListener('mouseleave', close);
+      btn.addEventListener('focus', open);
+      btn.addEventListener('blur', close);
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.hasAttribute('data-open') && e.detail > 0 && matchMedia('(hover: none)').matches ? close() : open();
+      });
+      btn.addEventListener('keydown', (e) => e.key === 'Escape' && close());
+    }
+  }
+  customElements.define('x-term', XTerm);
+</script>

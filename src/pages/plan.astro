@@ -1,0 +1,124 @@
+---
+import Base from '@/layouts/Base.astro';
+import { allDocs, docsIn, hrefOf } from '@/lib/docs';
+import { groups, kinds, priorities, statuses } from '@/data/site';
+
+const docs = await allDocs();
+const count = (f: (d: (typeof docs)[number]) => boolean) => docs.filter(f).length;
+const done = count((d) => d.data.status === 'done');
+const draft = count((d) => d.data.status === 'draft');
+const planned = count((d) => d.data.status === 'planned');
+const byPriority = [1, 2, 3].map((p) => count((d) => d.data.status === 'planned' && d.data.priority === p));
+const filters = [
+  { id: 'all', label: '全部' },
+  { id: 'p1', label: `先写 ${byPriority[0]}` },
+  { id: 'p2', label: `其次 ${byPriority[1]}` },
+  { id: 'p3', label: `以后 ${byPriority[2]}` },
+  { id: 'done', label: `已写 ${done + draft}` },
+];
+---
+
+<Base title="内容计划" description="每一页的状态、优先级和打算覆盖的要点。" current="plan">
+  <div class="page page-narrow">
+    <p class="crumb"><a href="/">总览</a> / 工具与速查</p>
+    <h1 class="page-title">内容计划</h1>
+    <p class="lead">
+      全站每一页的状态。还没写的页面都已经建好文件，里面列了打算覆盖的要点，点“要点”展开看。
+    </p>
+
+    <div class="stats">
+      <div class="stat"><b>{docs.length}</b><span>总页数</span></div>
+      <div class="stat"><b>{done}</b><span>已写</span></div>
+      {draft > 0 && <div class="stat"><b>{draft}</b><span>草稿</span></div>}
+      <div class="stat"><b>{planned}</b><span>待写</span></div>
+    </div>
+    <div class="progress" role="img" aria-label={`已写 ${done + draft} / ${docs.length}`}>
+      <i style={`width:${((done + draft) / docs.length) * 100}%`}></i>
+    </div>
+
+    <div class="prose" style="margin-top:2rem">
+      <p>
+        优先级的排法：<strong>先写</strong>的是备孕和孕期马上用得上、或者错了代价大的内容（检查时间窗、危险信号、要提前几个月订的东西）；<strong>其次</strong>是到了那个阶段再看也来得及的；<strong>以后</strong>是只有一部分人需要、或者离现在还远的。
+      </p>
+    </div>
+
+    <div class="filters" data-plan-filters>
+      {
+        filters.map((f, i) => (
+          <button class="btn" type="button" data-filter={f.id} aria-pressed={i === 0 ? 'true' : 'false'}>
+            {f.label}
+          </button>
+        ))
+      }
+    </div>
+
+    {
+      groups.map((g) => {
+        const pages = docsIn(docs, g.id);
+        const w = pages.filter((d) => d.data.status !== 'planned').length;
+        return (
+          <section data-plan-group>
+            <div class="group-head">
+              <h2>
+                <a href={`/${g.id}/`} style="text-decoration:none">
+                  {g.title}
+                </a>
+              </h2>
+              <span>
+                {g.range ? `${g.range} · ` : ''}已写 {w} / {pages.length}
+              </span>
+            </div>
+            <ul class="list-rows">
+              {pages.map((d) => (
+                <li class="list-row" data-status={d.data.status} data-key={d.data.status === 'planned' ? `p${d.data.priority}` : 'done'}>
+                  <a class="list-row-title" href={hrefOf(d)}>
+                    {d.data.title}
+                  </a>
+                  <p class="list-row-sum">{d.data.summary}</p>
+                  <span class="list-row-meta">
+                    {d.data.kind !== 'guide' && <span>{kinds[d.data.kind]}</span>}
+                    {d.data.status === 'planned' ? (
+                      <span class="tag" data-tone={d.data.priority === 1 ? 'green' : undefined}>
+                        {priorities[d.data.priority as 1 | 2 | 3]}
+                      </span>
+                    ) : (
+                      <span>{statuses[d.data.status]}</span>
+                    )}
+                  </span>
+                  {d.data.outline.length > 0 && (
+                    <details>
+                      <summary>要点 {d.data.outline.length} 条</summary>
+                      <ul>
+                        {d.data.outline.map((line) => (
+                          <li>{line}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })
+    }
+  </div>
+</Base>
+
+<script>
+  const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-plan-filters] [data-filter]')];
+  buttons.forEach((b) =>
+    b.addEventListener('click', () => {
+      buttons.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      const f = b.dataset.filter!;
+      document.querySelectorAll<HTMLElement>('[data-plan-group]').forEach((sec) => {
+        let shown = 0;
+        sec.querySelectorAll<HTMLElement>('.list-row').forEach((row) => {
+          row.hidden = f !== 'all' && row.dataset.key !== f;
+          if (!row.hidden) shown++;
+        });
+        sec.hidden = shown === 0;
+      });
+    }),
+  );
+</script>

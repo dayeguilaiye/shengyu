@@ -1,0 +1,102 @@
+---
+import { allDocs, docsIn, hrefOf } from '@/lib/docs';
+import { stages, topics, type Group } from '@/data/site';
+
+interface Props {
+  /** 当前页：页面 id（如 "food/safety"）、分组 id，或 home / plan / points / glossary */
+  current?: string;
+}
+const { current = '' } = Astro.props;
+const docs = await allDocs();
+const currentGroup = current.split('/')[0];
+const extras = [
+  { id: 'points', href: '/points/', title: '知识点库' },
+  { id: 'glossary', href: '/glossary/', title: '术语表' },
+  { id: 'plan', href: '/plan/', title: '内容计划' },
+];
+
+const groupData = (g: Group) => {
+  const pages = docsIn(docs, g.id);
+  return { pages, done: pages.filter((d) => d.data.status !== 'planned').length };
+};
+---
+
+<aside class="side" id="side" data-side>
+  <a class="brand" href="/">
+    <span class="brand-name">孕育手册</span>
+    <span class="brand-sub">从备孕到三岁</span>
+  </a>
+
+  <button class="search-btn" type="button" data-search-open>
+    <span>搜索</span>
+    <kbd>⌘K</kbd>
+  </button>
+
+  <nav aria-label="全站目录">
+    <a class="nav-top" href="/" aria-current={current === 'home' ? 'page' : undefined}>总览</a>
+
+    <p class="nav-label">按时间</p>
+    {
+      stages.map((g, i) => {
+        const { pages, done } = groupData(g);
+        return (
+          <details class="nav-group" data-kind="stage" data-stage={g.id} open={g.id === currentGroup}>
+            <summary>
+              <span class="nav-num">{String(i + 1).padStart(2, '0')}</span>
+              <span>{g.title}</span>
+              <span class="nav-here" data-here hidden>现在</span>
+              <span class="nav-count">{done}/{pages.length}</span>
+            </summary>
+            <ul>
+              {pages.map((d) => (
+                <li>
+                  <a href={hrefOf(d)} data-doc={d.id} data-status={d.data.status} aria-current={d.id === current ? 'page' : undefined}>
+                    {d.data.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </details>
+        );
+      })
+    }
+
+    <p class="nav-label">按专题</p>
+    {
+      topics.map((g) => {
+        const { pages, done } = groupData(g);
+        const isTools = g.id === 'tools';
+        return (
+          <details class="nav-group" data-kind="topic" open={g.id === currentGroup || (isTools && extras.some((e) => e.id === current))}>
+            <summary>
+              <span>{g.title}</span>
+              <span class="nav-count">{done}/{pages.length}</span>
+            </summary>
+            <ul>
+              {pages.map((d) => (
+                <li>
+                  <a href={hrefOf(d)} data-doc={d.id} data-status={d.data.status} aria-current={d.id === current ? 'page' : undefined}>
+                    {d.data.title}
+                  </a>
+                </li>
+              ))}
+              {isTools &&
+                extras.map((e) => (
+                  <li>
+                    <a href={e.href} aria-current={e.id === current ? 'page' : undefined}>
+                      {e.title}
+                    </a>
+                  </li>
+                ))}
+            </ul>
+          </details>
+        );
+      })
+    }
+  </nav>
+
+  <div class="side-foot">
+    <button class="link-btn" type="button" data-theme-toggle>主题</button>
+    <span>浅色字的页面待写</span>
+  </div>
+</aside>

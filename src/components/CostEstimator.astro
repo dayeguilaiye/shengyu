@@ -1,0 +1,192 @@
+---
+/**
+ * 开支估算器。数据在 src/data/costs.ts，改数字去那里。
+ * 选择和手填的金额存在浏览器里。
+ */
+import { categories, phases, tiers } from '@/data/costs';
+---
+
+<x-cost class="cost">
+  <div class="cost-top">
+    <span>城市</span>
+    <div class="seg" role="group" aria-label="城市等级">
+      {
+        tiers.map((t) => (
+          <button type="button" data-tier={t.id} aria-pressed="false">
+            {t.label}
+          </button>
+        ))
+      }
+    </div>
+    <button class="link-btn" type="button" data-reset>恢复默认</button>
+  </div>
+
+  <div class="cost-total" aria-live="polite">
+    <div class="cost-total-label">从备孕到孩子一岁，报销和补贴之前</div>
+    <div class="cost-total-num" data-total>—</div>
+    <div class="cost-bar" data-bar aria-hidden="true">
+      {phases.map((_, i) => <i style={`--o:${1 - i * 0.17}`} />)}
+    </div>
+    <div class="cost-legend" data-legend>
+      {
+        phases.map((p, i) => (
+          <span>
+            <i style={`--o:${1 - i * 0.17}`} />
+            {p} <span data-phase-sum={p} />
+          </span>
+        ))
+      }
+    </div>
+  </div>
+
+  {
+    phases.map((phase) => (
+      <>
+        <p class="cost-phase">{phase}</p>
+        {categories
+          .filter((c) => c.phase === phase)
+          .map((c) => (
+            <div class="cost-row" data-cat={c.id}>
+              <div class="cost-name">
+                {c.title}
+                {c.note && <small>{c.note}</small>}
+              </div>
+              <select class="field" aria-label={`${c.title}：方案`} disabled={c.options.length === 1}>
+                {c.options.map((o) => (
+                  <option value={o.id}>{o.label}</option>
+                ))}
+              </select>
+              <div class="cost-range" data-range />
+              <input class="field" type="number" min="0" step="100" inputmode="numeric" placeholder="实际金额" aria-label={`${c.title}：实际金额（元）`} />
+            </div>
+          ))}
+      </>
+    ))
+  }
+  <script type="application/json" set:html={JSON.stringify({ categories, phases, tiers })} />
+</x-cost>
+
+<script>
+  import type { CostCategory } from '@/data/costs';
+
+  interface State {
+    tier: string;
+    pick: Record<string, string>;
+    custom: Record<string, number>;
+  }
+  const KEY = 'yy:cost';
+  const trim = (n: number) => String(+n.toFixed(1));
+  const money = (n: number) => (n >= 10000 ? `${trim(n / 10000)} 万` : `${n.toLocaleString('zh-CN')} 元`);
+  const range = (lo: number, hi: number) => {
+    if (lo === hi) return money(lo);
+    const sameUnit = lo >= 10000 === hi >= 10000;
+    const left = sameUnit ? money(lo).replace(/ [万元]$/, '') : money(lo);
+    return `${left} – ${money(hi)}`;
+  };
+
+  class XCost extends HTMLElement {
+    data!: { categories: CostCategory[]; phases: string[]; tiers: { id: string; label: string; factor: number }[] };
+    state!: State;
+
+    connectedCallback() {
+      this.data = JSON.parse(this.querySelector('script[type="application/json"]')!.textContent!);
+      this.state = this.load();
+
+      this.querySelectorAll<HTMLButtonElement>('[data-tier]').forEach((b) =>
+        b.addEventListener('click', () => {
+          this.state.tier = b.dataset.tier!;
+          this.update();
+        }),
+      );
+      this.querySelectorAll<HTMLElement>('[data-cat]').forEach((row) => {
+        const id = row.dataset.cat!;
+        const select = row.querySelector('select')!;
+        const input = row.querySelector('input')!;
+        select.value = this.state.pick[id];
+        if (id in this.state.custom) input.value = String(this.state.custom[id]);
+        select.addEventListener('change', () => {
+          this.state.pick[id] = select.value;
+          this.update();
+        });
+        input.addEventListener('input', () => {
+          const v = parseFloat(input.value);
+          if (Number.isFinite(v) && v >= 0) this.state.custom[id] = v;
+          else delete this.state.custom[id];
+          this.update();
+        });
+      });
+      this.querySelector('[data-reset]')!.addEventListener('click', () => {
+        this.state = this.defaults();
+        this.querySelectorAll<HTMLElement>('[data-cat]').forEach((row) => {
+          row.querySelector('select')!.value = this.state.pick[row.dataset.cat!];
+          row.querySelector('input')!.value = '';
+        });
+        this.update();
+      });
+      this.update();
+    }
+
+    defaults(): State {
+      return { tier: 't1', pick: Object.fromEntries(this.data.categories.map((c) => [c.id, c.default])), custom: {} };
+    }
+
+    load(): State {
+      const d = this.defaults();
+      try {
+        const s = JSON.parse(localStorage.getItem(KEY) ?? 'null');
+        if (!s) return d;
+        for (const c of this.data.categories) {
+          if (c.options.some((o) => o.id === s.pick?.[c.id])) d.pick[c.id] = s.pick[c.id];
+          if (typeof s.custom?.[c.id] === 'number') d.custom[c.id] = s.custom[c.id];
+        }
+        if (this.data.tiers.some((t) => t.id === s.tier)) d.tier = s.tier;
+      } catch {}
+      return d;
+    }
+
+    update() {
+      const factor = this.data.tiers.find((t) => t.id === this.state.tier)!.factor;
+      const round = (n: number) => Math.round(n / 100) * 100;
+      const sums = new Map(this.data.phases.map((p) => [p, [0, 0]]));
+
+      for (const c of this.data.categories) {
+        const o = c.options.find((x) => x.id === this.state.pick[c.id]) ?? c.options[0];
+        const f = o.tier ? factor : 1;
+        const custom = this.state.custom[c.id];
+        const lo = custom ?? round(o.low * f);
+        const hi = custom ?? round(o.high * f);
+        const row = this.querySelector<HTMLElement>(`[data-cat="${c.id}"]`)!;
+        row.querySelector('[data-range]')!.textContent = range(lo, hi);
+        row.classList.toggle('is-custom', custom !== undefined);
+        const s = sums.get(c.phase)!;
+        s[0] += lo;
+        s[1] += hi;
+      }
+
+      let lo = 0;
+      let hi = 0;
+      const bars = this.querySelectorAll<HTMLElement>('[data-bar] i');
+      this.data.phases.forEach((p, i) => {
+        const [a, b] = sums.get(p)!;
+        lo += a;
+        hi += b;
+        bars[i].style.setProperty('--v', String(Math.max(1, (a + b) / 2)));
+        this.querySelector(`[data-phase-sum="${p}"]`)!.textContent = range(a, b);
+      });
+
+      const total = this.querySelector('[data-total]')!;
+      const unit = document.createElement('small');
+      unit.textContent = '万元';
+      const text = lo === hi ? (lo / 10000).toFixed(1) : `${(lo / 10000).toFixed(1)} – ${(hi / 10000).toFixed(1)}`;
+      total.replaceChildren(text, unit);
+
+      this.querySelectorAll<HTMLButtonElement>('[data-tier]').forEach((b) =>
+        b.setAttribute('aria-pressed', String(b.dataset.tier === this.state.tier)),
+      );
+      try {
+        localStorage.setItem(KEY, JSON.stringify(this.state));
+      } catch {}
+    }
+  }
+  customElements.define('x-cost', XCost);
+</script>

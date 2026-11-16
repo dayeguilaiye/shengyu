@@ -1,0 +1,143 @@
+---
+import Base from '@/layouts/Base.astro';
+import Profile from '@/components/Profile.astro';
+import { allDocs, docsIn, hrefOf } from '@/lib/docs';
+import { stages, topics } from '@/data/site';
+
+const docs = await allDocs();
+const decisions = docs
+  .filter((d) => d.data.kind === 'decision')
+  .sort((a, b) => (a.data.decideAt ?? 999) - (b.data.decideAt ?? 999));
+const written = docs.filter((d) => d.data.status !== 'planned').length;
+---
+
+<Base current="home" description="从备孕到孩子三岁要知道的事，按时间和按专题两条线整理。">
+  <div class="page page-narrow">
+    <h1 class="home-title">孕育手册</h1>
+    <p class="home-lead">
+      从备孕到孩子三岁要知道的事，分两条线整理。一条按时间，走到哪一步看哪一段；一条按专题，钱、人手、身体恢复这类跨阶段的事单独成篇。
+    </p>
+
+    <Profile />
+
+    <div class="ruler-wrap">
+      <div class="ruler" data-ruler>
+        {
+          stages.map((g, i) => (
+            <a class="ruler-seg" href={`/${g.id}/`} style={`--w:${g.weight ?? 3}`} data-seg={g.id}>
+              <span class="ruler-num">{String(i + 1).padStart(2, '0')}</span>
+              <span class="ruler-bar">
+                <i />
+              </span>
+              <span class="ruler-name">{g.short ?? g.title}</span>
+              <span class="ruler-range">{g.range}</span>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+
+    <section class="sec">
+      <h2 class="sec-title">按时间</h2>
+      <p class="sec-sub">八个阶段。深色的页面已经写好，浅色的还在计划里。</p>
+      {
+        stages.map((g, i) => (
+          <div class="stage-row" data-stage-row={g.id}>
+            <div class="stage-num">{String(i + 1).padStart(2, '0')}</div>
+            <div class="stage-name">
+              <a href={`/${g.id}/`}>{g.title}</a>
+              <span class="stage-range">{g.range}</span>
+              <span class="tag stage-here" data-tone="green" data-here hidden>
+                现在
+              </span>
+            </div>
+            <div>
+              <p class="stage-blurb">{g.blurb}</p>
+              <ul class="page-links">
+                {docsIn(docs, g.id).map((d) => (
+                  <li>
+                    <a href={hrefOf(d)} data-status={d.data.status}>
+                      {d.data.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ))
+      }
+    </section>
+
+    <section class="sec">
+      <h2 class="sec-title">按专题</h2>
+      <p class="sec-sub">跨阶段的事，一个问题一篇。</p>
+      <div class="topic-grid">
+        {
+          topics.map((g) => (
+            <div class="topic">
+              <h3>
+                <a href={`/${g.id}/`}>{g.title}</a>
+              </h3>
+              <p class="topic-blurb">{g.blurb}</p>
+              <ul>
+                {docsIn(docs, g.id).map((d) => (
+                  <li>
+                    <a href={hrefOf(d)} data-status={d.data.status}>
+                      {d.data.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <section class="sec">
+      <h2 class="sec-title">要做的决定</h2>
+      <p class="sec-sub">一路上有十来个没有标准答案的选择，按大致要定下来的时间排。</p>
+      <ol class="decisions">
+        {
+          decisions.map((d) => (
+            <li>
+              <span class="when">{d.data.when}</span>
+              <a href={hrefOf(d)} data-status={d.data.status}>
+                {d.data.title}
+              </a>
+              <p>{d.data.summary}</p>
+            </li>
+          ))
+        }
+      </ol>
+    </section>
+
+    <section class="sec">
+      <p class="sec-sub">
+        一共 {docs.length} 页，已写 {written} 页。还没写的每一页都列好了要覆盖的要点，见<a href="/plan/">内容计划</a>。零散的知识点汇总在<a
+          href="/points/">知识点库</a
+        >，看不懂的词查<a href="/glossary/">术语表</a>。
+      </p>
+    </section>
+  </div>
+</Base>
+
+<script>
+  import { onProfile, statusOf } from '@/scripts/profile';
+
+  const segs = [...document.querySelectorAll<HTMLElement>('[data-seg]')];
+  onProfile((p) => {
+    const s = statusOf(p);
+    const at = segs.findIndex((el) => el.dataset.seg === s?.stage);
+    segs.forEach((el, i) => {
+      const fill = at < 0 ? 0 : i < at ? 1 : i === at ? Math.max(0.06, s!.frac) : 0;
+      el.querySelector<HTMLElement>('i')!.style.setProperty('--fill', String(fill));
+      el.classList.toggle('is-here', i === at);
+    });
+    document.querySelectorAll<HTMLElement>('[data-stage-row]').forEach((row) => {
+      const here = row.dataset.stageRow === s?.stage;
+      row.classList.toggle('is-here', here);
+      row.querySelector<HTMLElement>('[data-here]')!.hidden = !here;
+    });
+  });
+</script>

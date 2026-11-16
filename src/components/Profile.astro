@@ -1,0 +1,120 @@
+---
+/** "你现在在哪一步"的设置条。可以放在任何页面，全站共用同一份数据。 */
+---
+
+<x-profile class="you">
+  <div class="you-row">
+    <span class="you-label">你现在在哪一步</span>
+    <div class="seg" role="group" aria-label="当前阶段">
+      <button type="button" data-mode="prep" aria-pressed="false">备孕中</button>
+      <button type="button" data-mode="pregnant" aria-pressed="false">怀孕中</button>
+      <button type="button" data-mode="born" aria-pressed="false">孩子已出生</button>
+    </div>
+    <span class="you-date" data-date-wrap hidden>
+      <select class="field" data-basis aria-label="按哪个日期算">
+        <option value="edd">预产期</option>
+        <option value="lmp">末次月经第一天</option>
+      </select>
+      <input class="field" type="date" data-date aria-label="日期" />
+    </span>
+    <button class="link-btn" type="button" data-clear hidden>清除</button>
+  </div>
+  <p class="you-status" data-you-status></p>
+</x-profile>
+
+<script>
+  import {
+    getProfile, setProfile, onProfile, statusOf, gaDays, examsAround, dateAtGa,
+    parseDate, addDays, toISO, fmtDate, type Profile, type Mode,
+  } from '@/scripts/profile';
+
+  class XProfile extends HTMLElement {
+    connectedCallback() {
+      const basis = this.querySelector<HTMLSelectElement>('[data-basis]')!;
+      const date = this.querySelector<HTMLInputElement>('[data-date]')!;
+
+      this.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((btn) =>
+        btn.addEventListener('click', () => {
+          const old = getProfile();
+          const mode = btn.dataset.mode as Mode;
+          setProfile({ ...old, mode, basis: old?.basis ?? 'edd' });
+          if (mode !== 'prep' && !date.value) date.focus();
+        }),
+      );
+
+      const commit = () => {
+        const p = getProfile();
+        if (!p || p.mode === 'prep') return;
+        if (p.mode === 'born') return setProfile({ ...p, birth: date.value || undefined });
+        const b = basis.value as 'edd' | 'lmp';
+        const edd = !date.value ? undefined : b === 'edd' ? date.value : toISO(addDays(parseDate(date.value), 280));
+        setProfile({ ...p, basis: b, edd });
+      };
+      date.addEventListener('change', commit);
+      basis.addEventListener('change', () => {
+        const p = getProfile();
+        if (p) setProfile({ ...p, basis: basis.value as 'edd' | 'lmp' });
+      });
+      this.querySelector('[data-clear]')!.addEventListener('click', () => setProfile(null));
+
+      onProfile((p) => this.render(p));
+    }
+
+    render(p: Profile | null) {
+      const basis = this.querySelector<HTMLSelectElement>('[data-basis]')!;
+      const date = this.querySelector<HTMLInputElement>('[data-date]')!;
+      const status = this.querySelector<HTMLElement>('[data-you-status]')!;
+
+      this.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((b) =>
+        b.setAttribute('aria-pressed', String(b.dataset.mode === p?.mode)),
+      );
+      this.querySelector<HTMLElement>('[data-date-wrap]')!.hidden = !p || p.mode === 'prep';
+      this.querySelector<HTMLElement>('[data-clear]')!.hidden = !p;
+      basis.hidden = p?.mode !== 'pregnant';
+
+      if (p?.mode === 'pregnant') {
+        basis.value = p.basis ?? 'edd';
+        const v = !p.edd ? '' : basis.value === 'edd' ? p.edd : toISO(addDays(parseDate(p.edd), -280));
+        if (date.value !== v) date.value = v;
+      } else if (p?.mode === 'born') {
+        if (date.value !== (p.birth ?? '')) date.value = p.birth ?? '';
+      }
+
+      const s = statusOf(p);
+      status.replaceChildren();
+      if (!s) {
+        status.textContent = '选一个，时间尺和产检表就按你的日期来算。只存在这台设备的浏览器里，不会上传。';
+        return;
+      }
+      if (s.problem) {
+        status.textContent = s.problem;
+        return;
+      }
+      const b = document.createElement('b');
+      b.textContent = s.title;
+      status.append(b, s.text);
+
+      const ga = gaDays(p);
+      if (p && ga !== null) {
+        const { current, next } = examsAround(ga);
+        const line = (lead: string, parts: [string, string][]) => {
+          status.append(document.createElement('br'), lead);
+          parts.forEach(([name, tail], i) => {
+            const em = document.createElement('em');
+            em.textContent = name;
+            status.append(i ? '、' : '', em, tail);
+          });
+          status.append('。');
+        };
+        const doable = current.filter((x) => !x.indicatedOnly);
+        if (doable.length) {
+          line('现在在窗口内：', doable.map((x) => [x.name, `（${fmtDate(dateAtGa(p, x.to))}前）`]));
+        }
+        if (next) {
+          line('接下来：', [[next.name, `，${fmtDate(dateAtGa(p, next.from))} 到 ${fmtDate(dateAtGa(p, next.to))}`]]);
+        }
+      }
+    }
+  }
+  customElements.define('x-profile', XProfile);
+</script>

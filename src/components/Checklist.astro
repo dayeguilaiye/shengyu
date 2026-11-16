@@ -1,0 +1,82 @@
+---
+/**
+ * 可勾选的清单。里面放一个 Markdown 无序列表，每项建议写成：
+ *   - **物品名** 数量或说明
+ * 勾选状态按 id 存在浏览器里，所以 id 全站唯一，定了就别改。
+ */
+interface Props {
+  id: string;
+  title?: string;
+}
+const { id, title } = Astro.props;
+---
+
+<x-checklist class="cl" data-id={id}>
+  <div class="cl-head">
+    {title && <span class="cl-title">{title}</span>}
+    <span class="cl-count" data-count></span>
+    <button class="link-btn" type="button" data-reset hidden>清空勾选</button>
+  </div>
+  <div class="cl-body prose"><slot /></div>
+</x-checklist>
+
+<script>
+  import { anchorId } from '@/lib/anchor';
+
+  class XChecklist extends HTMLElement {
+    key = '';
+    done = new Set<string>();
+
+    connectedCallback() {
+      this.key = `yy:cl:${this.dataset.id}`;
+      try {
+        this.done = new Set(JSON.parse(localStorage.getItem(this.key) ?? '[]'));
+      } catch {
+        this.done = new Set();
+      }
+      this.querySelectorAll<HTMLLIElement>('.cl-body > ul > li').forEach((li) => {
+        const itemKey = anchorId((li.querySelector('strong')?.textContent ?? li.textContent ?? '').trim());
+        const label = document.createElement('label');
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.checked = this.done.has(itemKey);
+        const text = document.createElement('span');
+        text.className = 'cl-text';
+        text.append(...li.childNodes);
+        label.append(box, text);
+        li.append(label);
+        li.classList.toggle('is-done', box.checked);
+        box.addEventListener('change', () => {
+          box.checked ? this.done.add(itemKey) : this.done.delete(itemKey);
+          li.classList.toggle('is-done', box.checked);
+          this.save();
+        });
+      });
+      this.querySelector('[data-reset]')?.addEventListener('click', () => {
+        this.done.clear();
+        this.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach((b) => {
+          b.checked = false;
+          b.closest('li')?.classList.remove('is-done');
+        });
+        this.save();
+      });
+      this.render();
+    }
+
+    save() {
+      try {
+        localStorage.setItem(this.key, JSON.stringify([...this.done]));
+      } catch {}
+      this.render();
+    }
+
+    render() {
+      const boxes = this.querySelectorAll<HTMLInputElement>('input[type=checkbox]');
+      const n = [...boxes].filter((b) => b.checked).length;
+      const count = this.querySelector('[data-count]');
+      if (count) count.textContent = `${n} / ${boxes.length}`;
+      this.querySelector<HTMLElement>('[data-reset]')!.hidden = n === 0;
+    }
+  }
+  customElements.define('x-checklist', XChecklist);
+</script>

@@ -1,0 +1,13 @@
+---
+/** 提示框。type: info（默认）/ tip / warn */
+interface Props {
+  type?: 'info' | 'tip' | 'warn';
+  title?: string;
+}
+const { type = 'info', title } = Astro.props;
+---
+
+<aside class="note" data-type={type}>
+  {title && <p class="note-label">{title}</p>}
+  <slot />
+</aside>

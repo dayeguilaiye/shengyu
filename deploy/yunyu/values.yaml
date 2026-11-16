@@ -1,0 +1,16 @@
+hostName: yunyu.hitnrun.cn
+image:
+  repository: ghcr.io/dayeguilaiye/yunyu
+  digest: ""
+ingress:
+  enabled: true
+  apiVersion: traefik.containo.us/v1alpha1
+certificate:
+  enabled: true
+  issuerName: lets-encrypt
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    memory: 64Mi

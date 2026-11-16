@@ -1,0 +1,159 @@
+---
+/**
+ * 产检时间表。数据在 src/data/prenatal.ts。
+ * part="windows" 画有时间窗的检查；part="visits" 列出每次产检。
+ * 设置了预产期后会显示具体日期，并标出"现在"。
+ */
+import { windows, visits } from '@/data/prenatal';
+
+interface Props {
+  part: 'windows' | 'visits';
+}
+const { part } = Astro.props;
+/** 孕龄天数 → "13<sup>+6</sup>" 这样的 HTML */
+const wk = (d: number) => `${Math.floor(d / 7)}${d % 7 ? `<sup>+${d % 7}</sup>` : ''}`;
+const span = (from: number, to: number) => `${wk(from)}–${wk(to)} 周`;
+const ticks = [0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40];
+---
+
+<x-schedule>
+  {
+    part === 'windows' && (
+      <>
+        <div class="gantt" data-gantt>
+          <div class="gantt-row gantt-axis">
+            <span />
+            <span class="gantt-track" data-track>
+              {ticks.map((n) => (
+                <span style={`--at:${n}`}>{n}</span>
+              ))}
+              <em class="gantt-now-label" data-now-label hidden />
+            </span>
+            <span class="gantt-when">孕周</span>
+          </div>
+          {windows.map((x) => (
+            <div class="gantt-row" title={x.note}>
+              <span class="gantt-name">{x.name}</span>
+              <span class="gantt-track">
+                <i class="gantt-bar" data-kind={x.kind} style={`--from:${x.from};--to:${x.to}`} />
+              </span>
+              <span class="gantt-when">
+                <b set:html={span(x.from, x.to)} />
+                <span data-range data-from={x.from} data-to={x.to} />
+              </span>
+            </div>
+          ))}
+        </div>
+        <p class="gantt-legend">
+          <span>
+            <i />
+            人人都做
+          </span>
+          <span>
+            <i data-kind="choice" />
+            几选一，或有指征才做
+          </span>
+        </p>
+      </>
+    )
+  }
+
+  {
+    part === 'visits' &&
+      visits.map((v) => (
+        <details class="k k-visit" data-visit data-from={v.from} data-to={v.to}>
+          <summary>
+            <span>
+              <span class="visit-weeks" set:html={span(v.from, v.to)} />
+              <span class="visit-date" data-range data-from={v.from} data-to={v.to} />
+            </span>
+            <span>
+              <span class="k-title">{v.focus}</span>
+            </span>
+            <span class="k-toggle" aria-hidden="true" />
+          </summary>
+          <div class="k-body">
+            <section class="part">
+              <p class="part-label">必查</p>
+              <div class="part-body prose">
+                <ul>
+                  {v.must.map((m) => (
+                    <li>{m}</li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+            {v.optional.length > 0 && (
+              <section class="part">
+                <p class="part-label">按情况查</p>
+                <div class="part-body prose">
+                  <ul>
+                    {v.optional.map((m) => (
+                      <li>{m}</li>
+                    ))}
+                  </ul>
+                </div>
+              </section>
+            )}
+            {v.tips.length > 0 && (
+              <section class="part">
+                <p class="part-label">提醒</p>
+                <div class="part-body prose">
+                  <ul>
+                    {v.tips.map((m) => (
+                      <li>{m}</li>
+                    ))}
+                  </ul>
+                </div>
+              </section>
+            )}
+          </div>
+        </details>
+      ))
+  }
+</x-schedule>
+
+<script>
+  import { onProfile, gaDays, dateAtGa, fmtDate, fmtGa, type Profile } from '@/scripts/profile';
+
+  class XSchedule extends HTMLElement {
+    profile: Profile | null = null;
+
+    connectedCallback() {
+      onProfile((p) => {
+        this.profile = p;
+        this.render();
+      });
+    }
+
+    render() {
+      const p = this.profile;
+      const ga = gaDays(p);
+      this.querySelectorAll<HTMLElement>('[data-range]').forEach((el) => {
+        el.textContent =
+          p && ga !== null ? `${fmtDate(dateAtGa(p, +el.dataset.from!))} – ${fmtDate(dateAtGa(p, +el.dataset.to!))}` : '';
+      });
+      this.querySelectorAll<HTMLDetailsElement>('[data-visit]').forEach((v) => {
+        const from = +v.dataset.from!;
+        const to = +v.dataset.to!;
+        const now = ga !== null && ga >= from && ga <= to;
+        v.classList.toggle('is-now', now);
+        v.classList.toggle('is-past', ga !== null && ga > to);
+        if (now) v.open = true;
+      });
+
+      // “今天”的竖线：位置交给 CSS 变量 --now，每一行的轨道各画一段
+      const gantt = this.querySelector<HTMLElement>('[data-gantt]');
+      const label = this.querySelector<HTMLElement>('[data-now-label]');
+      if (!gantt || !label) return;
+      const show = ga !== null && ga >= 0 && ga <= 294;
+      gantt.toggleAttribute('data-has-now', show);
+      label.hidden = !show;
+      if (show) {
+        gantt.style.setProperty('--now', String(ga));
+        label.textContent = `今天 · ${fmtGa(ga!)}`;
+      }
+    }
+  }
+  customElements.define('x-schedule', XSchedule);
+</script>
