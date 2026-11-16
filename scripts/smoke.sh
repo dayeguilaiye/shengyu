@@ -32,6 +32,6 @@ while IFS= read -r asset; do
   curl --fail --silent --show-error --connect-timeout 10 --max-time 30 "$base$asset" -o "$tmp/asset"
   test -s "$tmp/asset"
 done < "$tmp/assets"
-status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o /dev/null -w '%{http_code}' "$base/__yunyu_missing_page__")"
+status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 -o /dev/null -w '%{http_code}' "$base/__shengyu_missing_page__")"
 test "$status" = 404
-echo 'Yunyu pages, search index, revision and 404 are healthy.'
+echo 'Shengyu pages, search index, revision and 404 are healthy.'

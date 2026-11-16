@@ -1,4 +1,4 @@
-name: Yunyu
+name: Shengyu
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: yunyu-${{ github.ref }}
+  group: shengyu-${{ github.ref }}
   cancel-in-progress: false
 
 defaults:
@@ -39,7 +39,7 @@ jobs:
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310
         with:
           version: v3.16.3
-      - run: helm lint deploy/yunyu --set image.digest=sha256:check
+      - run: helm lint deploy/shengyu --set image.digest=sha256:check
       - run: bash -n deploy/bootstrap.sh scripts/smoke.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -78,8 +78,8 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/dayeguilaiye/yunyu:sha-${{ github.sha }}
-          labels: org.opencontainers.image.source=https://github.com/dayeguilaiye/yunyu
+          tags: ghcr.io/dayeguilaiye/shengyu:sha-${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/dayeguilaiye/shengyu
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -98,22 +98,22 @@ jobs:
         env:
           IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
         run: |
-          # GHCR packages start private; make the yunyu package public once after its first publication.
-          docker manifest inspect "ghcr.io/dayeguilaiye/yunyu@$IMAGE_DIGEST" > /dev/null
+          # GHCR packages start private; make the shengyu package public once after its first publication.
+          docker manifest inspect "ghcr.io/dayeguilaiye/shengyu@$IMAGE_DIGEST" > /dev/null
       - name: Deploy
         env:
-          YUNYU_KUBECONFIG: ${{ secrets.YUNYU_KUBECONFIG }}
+          SHENGYU_KUBECONFIG: ${{ secrets.SHENGYU_KUBECONFIG }}
           IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          test -n "$YUNYU_KUBECONFIG"
+          test -n "$SHENGYU_KUBECONFIG"
           # A queued run must not replace a newer main revision.
-          test "$(gh api repos/dayeguilaiye/yunyu/commits/main --jq .sha)" = "$GITHUB_SHA"
+          test "$(gh api repos/dayeguilaiye/shengyu/commits/main --jq .sha)" = "$GITHUB_SHA"
           umask 077
-          export KUBECONFIG="$RUNNER_TEMP/yunyu-kubeconfig"
+          export KUBECONFIG="$RUNNER_TEMP/shengyu-kubeconfig"
           trap 'rm -f "$KUBECONFIG"' EXIT
-          printf '%s\n' "$YUNYU_KUBECONFIG" > "$KUBECONFIG"
-          helm upgrade yunyu deploy/yunyu --install --namespace yunyu \
+          printf '%s\n' "$SHENGYU_KUBECONFIG" > "$KUBECONFIG"
+          helm upgrade shengyu deploy/shengyu --install --namespace shengyu \
             --set-string image.digest="$IMAGE_DIGEST" --atomic --timeout 5m --history-max 10
       - name: Check HTTPS
-        run: bash scripts/smoke.sh https://yunyu.hitnrun.cn "$GITHUB_SHA"
+        run: bash scripts/smoke.sh https://shengyu.hitnrun.cn "$GITHUB_SHA"

@@ -1,6 +1,6 @@
-hostName: yunyu.hitnrun.cn
+hostName: shengyu.hitnrun.cn
 image:
-  repository: ghcr.io/dayeguilaiye/yunyu
+  repository: ghcr.io/dayeguilaiye/shengyu
   digest: ""
 ingress:
   enabled: true

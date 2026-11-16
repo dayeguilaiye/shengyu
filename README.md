@@ -1,4 +1,4 @@
-# 孕育手册
+# 生育手册
 
 从备孕到孩子三岁要知道的事，按时间和按专题两条线整理。纯前端静态站。
 
@@ -32,4 +32,4 @@ npm run build
 
 ## 部署
 
-站点部署到 https://yunyu.hitnrun.cn。GitHub Actions 验证构建后发布镜像，并通过 Helm 更新 k3s。首次配置和回滚步骤见 [部署说明](docs/deployment.md)。
+站点部署到 https://shengyu.hitnrun.cn。GitHub Actions 验证构建后发布镜像，并通过 Helm 更新 k3s。首次配置和回滚步骤见 [部署说明](docs/deployment.md)。

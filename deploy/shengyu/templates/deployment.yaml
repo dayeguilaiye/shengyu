@@ -25,7 +25,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: yunyu
+        - name: shengyu
           image: "{{ .Values.image.repository }}@{{ required "image.digest is required" .Values.image.digest }}"
           ports:
             - name: http
